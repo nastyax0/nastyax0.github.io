@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title }}</title>
+  <link rel="stylesheet" href="{{ site.baseurl }}/css/style.css">
+</head>
+<body>
+  <div class="hero">
+    <pre class="terminal-banner">
+      ███▄    █  ▄▄▄        ██████ ▄▄▄█████▓▓██   ██▓ ▄▄▄      ▒██   ██▒ ▒█████  
+      ██ ▀█   █ ▒████▄    ▒██    ▒ ▓  ██▒ ▓▒ ▒██  ██▒▒████▄    ▒▒ █ █ ▒░▒██▒  ██▒
+     ▓██  ▀█ ██▒▒██  ▀█▄  ░ ▓██▄   ▒ ▓██░ ▒░  ▒██ ██░▒██  ▀█▄  ░░  █   ░▒██░  ██▒
+     ▓██▒  ▐▌██▒░██▄▄▄▄██   ▒   ██▒░ ▓██▓ ░   ░ ▐██▓░░██▄▄▄▄██  ░ █ █ ▒ ▒██   ██░
+     ▒██░   ▓██░ ▓█   ▓██▒▒██████▒▒  ▒██▒ ░   ░ ██▒▓░ ▓█   ▓██▒▒██▒ ▒██▒░ ████▓▒░
+     ░ ▒░   ▒ ▒  ▒▒   ▓▒█░▒ ▒▓▒ ▒ ░  ▒ ░░      ██▒▒▒  ▒▒   ▓▒█░▒▒ ░ ░▓ ░░ ▒░▒░▒░ 
+     ░ ░░   ░ ▒░  ▒   ▒▒ ░░ ░▒  ░ ░    ░     ▓██ ░▒░   ▒   ▒▒ ░░░   ░▒ ░  ░ ▒ ▒░ 
+        ░   ░ ░   ░   ▒   ░  ░  ░    ░       ▒ ▒ ░░    ░   ▒    ░    ░  ░ ░ ░ ▒  
+              ░       ░  ░      ░            ░ ░           ░  ░ ░    ░      ░ ░  
+                                        ░                                ░░                                                                     
+     </pre>
+    <p> Nastyax0's Safe Heaven</p>
+  </div>
+
+  <div class="content-wrapper">
+    {% include sidebar.html %}
+    <div class="main-content">
+      {{ content }}
+    </div>
+  </div>
+
+  <footer>
+    <p> <a href="/_site/about.html">About</a> &copy;{{ site.time | date: "%Y" }} {{ site.author }}</p>
+  </footer>
+
+  <!-- JS for collapsing genres -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const toggles = document.querySelectorAll('.genre-toggle');
+      toggles.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const postList = btn.nextElementSibling;
+          postList.classList.toggle('hidden');
+        });
+      });
+    });
+  </script>
+  
+</body>
+</html>

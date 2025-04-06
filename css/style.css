@@ -1,0 +1,89 @@
+body {
+  font-family: 'Courier New', monospace;
+  background: #0b0b0b;
+  color: #00ff00;
+  padding: 20px;
+}
+
+.hero {
+  text-align: center;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #00ff00;
+  margin-bottom: 20px;
+}
+
+.writeup-columns {
+  display: flex;
+  gap: 20px;
+}
+
+.featured-left,
+.featured-right {
+  flex: 1;
+  padding: 20px;
+  background-color: #111;
+  border: 1px solid #00ff00;
+  border-radius: 8px;
+  box-shadow: 0 0 10px #00ff00;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding-left: 10px;
+}
+
+.sidebar li {
+  margin-bottom: 5px;
+}
+
+.genre-toggle {
+  background: none;
+  border: none;
+  color: #00ff00;
+  font-weight: bold;
+  cursor: pointer;
+  margin-bottom: 5px;
+}
+
+.post-list.hidden {
+  display: none;
+}
+
+a {
+  color: #00ffff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  color: #ff00ff;
+}
+
+.content-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+/* Optional width for sidebar */
+.sidebar {
+  width: 220px;
+}
+
+/* Main content will stretch */
+.main-content {
+  flex: 1;
+}
+
+.terminal-banner {
+  font-family: 'Courier New', Courier, monospace;
+  color: #ff0000;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: pre;
+  text-align: center;
+  margin-bottom: 30px;
+  text-shadow: 0 0 5px #00ff00;
+}
+
