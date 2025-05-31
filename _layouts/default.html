@@ -12,7 +12,7 @@
 </head>
 <body>
   <div class="hero">
-  <pre class="terminal-banner">
+  <pre class="terminal-banner ascii-banner">
       ███▄    █  ▄▄▄        ██████ ▄▄▄█████▓▓██   ██▓ ▄▄▄      ▒██   ██▒ ▒█████  
       ██ ▀█   █ ▒████▄    ▒██    ▒ ▓  ██▒ ▓▒ ▒██  ██▒▒████▄    ▒▒ █ █ ▒░▒██▒  ██▒
      ▓██  ▀█ ██▒▒██  ▀█▄  ░ ▓██▄   ▒ ▓██░ ▒░  ▒██ ██░▒██  ▀█▄  ░░  █   ░▒██░  ██▒<span class="terminal-cursor"></span>
@@ -23,8 +23,20 @@
         ░   ░ ░   ░   ▒   ░  ░  ░    ░       ▒ ▒ ░░    ░   ▒    ░    ░  ░ ░ ░ ▒  
               ░       ░  ░      ░            ░ ░           ░  ░ ░    ░      ░ ░  
                                         ░                                ░░</pre>
+
+
+  <img src="/assets/images/ascii-banner.png" alt="Nastyax0 ASCII Banner" class="ascii-img" />                                      
   <p>Nastyax0's Safe Heaven</p>
 </div>
+<!-- sidebar.html -->
+
+<button class="hamburger-menu" aria-label="Toggle Sidebar">
+  &#9776;
+</button>
+
+<nav class="sidebar-content">
+  {% include sidebar.html %}
+</nav>
 
   <div class="content-wrapper">
     {% include sidebar.html %}
@@ -52,6 +64,16 @@
       subPostList.classList.toggle('hidden');
     });
   });
+  
+  document.addEventListener('DOMContentLoaded', () => {
+  const hamburger = document.querySelector('.hamburger-menu');
+  const sidebar = document.querySelector('.sidebar-content');
+
+  hamburger.addEventListener('click', () => {
+    sidebar.classList.toggle('active');
+  });
+});
+
   </script>
   
 </body>

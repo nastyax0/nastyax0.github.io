@@ -73,14 +73,17 @@ If the buffer matches "LETMEWIN\n", it prints success and displays the flag.
 
 We want to send our input through standard input (stdin) which corresponds to file descriptor 0 in Linux.
 
-Reverse the line
+```c
+//Reverse the line
 int fd = atoi( argv[1] ) - 0x1234
 0 = x - 0x1234
 x = 0x1235
-and calculate decimal values we get 4661
+//and calculate decimal values we get 4661
+```
+input **4661**
 
-input 4661
-then type, LETMEWIN
+then type, _LETMEWIN_
 
 
 ## Output
+![output](/assets/images/output.png)

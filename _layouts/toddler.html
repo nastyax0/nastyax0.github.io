@@ -23,11 +23,20 @@
         ░   ░ ░   ░   ▒   ░  ░  ░    ░       ▒ ▒ ░░    ░   ▒    ░    ░  ░ ░ ░ ▒  
               ░       ░  ░      ░            ░ ░           ░  ░ ░    ░      ░ ░  
                                         ░                                ░░</pre>
-  <p>Nastyax0's Safe Heaven</p>
+  <div class="header">
+  <div class="sidebar-toggle-wrapper">
+    <button class="hamburger-menu" aria-label="Toggle Sidebar">&#9776;</button>
+    <nav class="sidebar-content">
+      {% include sidebar.html %}
+    </nav>
+  </div>
+  <p class="site-title">Nastyax0's Safe Heaven</p>
 </div>
 
+</div>
   <div class="content-wrapper">
-    {% include sidebar.html %}
+    <div class="sidebar-content-desktop">
+    {% include sidebar.html %}</div>
     <div class="main-content">
       <img class = "photo" src="/assets/images/title.png">
       {{ content }}
@@ -53,7 +62,19 @@
       subPostList.classList.toggle('hidden');
     });
   });
+
+  document.addEventListener('DOMContentLoaded', () => {
+  const hamburger = document.querySelector('.hamburger-menu');
+  const sidebar = document.querySelector('.sidebar-content');
+
+  hamburger.addEventListener('click', () => {
+    sidebar.classList.toggle('active');
+  });
+});
+
   </script>
   
 </body>
 </html>
+
+
