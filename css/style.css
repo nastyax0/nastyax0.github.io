@@ -233,3 +233,10 @@ img{
   width: 600px;
 }
 
+.photo {
+  display: block;
+  width: 100%;        /* Full width of container */
+  height: 290px;       /* Preserve aspect ratio */
+  max-width: none;    /* Allow it to exceed 100% if needed */
+}
+

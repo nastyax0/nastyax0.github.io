@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: toddler
 title: "Welcome to Jekyll!"
 date: 2025-04-06 12:26:40 +0530
 categories: jekyll update
