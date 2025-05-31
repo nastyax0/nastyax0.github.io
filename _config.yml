@@ -34,6 +34,8 @@ theme:
 plugins:
   - jekyll-feed
 
+permalink: /posts/:title.html
+
 author : nastyax0
 defaults:
   - scope:

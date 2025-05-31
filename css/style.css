@@ -45,6 +45,15 @@ body {
   margin-bottom: 5px;
 }
 
+.subgenre-toggle {
+  background: none;
+  border: none;
+  color: #ff0000;
+  font-weight: bold;
+  cursor: pointer;
+  margin-bottom: 5px;
+}
+
 .post-list.hidden {
   display: none;
 }
@@ -87,3 +96,6 @@ a:hover {
   text-shadow: 0 0 5px #00ff00;
 }
 
+.hidden {
+  display: none;
+}
