@@ -99,3 +99,137 @@ a:hover {
 .hidden {
   display: none;
 }
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+  line-height: 1.5;
+  text-shadow: 0 0 3px #003300; /* soft green glow behind text */
+}
+
+a:hover {
+  text-decoration: underline;
+  color: #ff00ff;
+  text-shadow: 0 0 8px #ff00ff;
+}
+
+.genre-toggle:hover {
+  color: #00ffff;
+  text-shadow: 0 0 6px #00ffff;
+}
+
+.subgenre-toggle:hover {
+  color: #ff5555;
+  text-shadow: 0 0 6px #ff5555;
+}
+
+.sidebar {
+  width: 220px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.terminal-banner {
+  font-family: 'Courier New', Courier, monospace;
+  color: #ff0000;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1.2;
+  white-space: pre;
+  text-shadow: 0 0 5px #00ff00;
+  margin-bottom: 20px;
+}
+
+.terminal-cursor {
+  position: absolute;
+  width: 3px;
+  margin-left: 10px;
+  height: 5em;
+  background: red;
+  animation: blink 1s steps(2, start) infinite;
+  pointer-events: none;
+}
+
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+
+
+.highlight ,code {
+  background: #111 !important;
+  font-family: monospace;
+  line-height: 1.4;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+.highlight{
+  color: #00ff00 !important;
+}
+code {
+  font-family: 'Fira Code', monospace;
+  background-color: #272822;
+  color: #f8f8f2;
+  padding: 1em;
+  border-radius: 8px;
+  display: block;
+  white-space: pre;
+}
+
+/* Monokai-like token colors */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #75715e;
+}
+
+.token.punctuation {
+  color: #f8f8f2;
+}
+
+.token.property,
+.token.tag,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #f92672;
+}
+
+.token.boolean,
+.token.number {
+  color: #ae81ff;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #a6e22e;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.token.variable {
+  color: #f8f8f2;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.function,
+.token.class-name {
+  color: #e6db74;
+}
+
+img{
+  max-width: 100%; 
+  height: auto; 
+  width: 600px;
+}
+
