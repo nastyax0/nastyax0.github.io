@@ -87,3 +87,207 @@ then type, _LETMEWIN_
 
 ## Output
 ![output](/assets/images/output.png)
+
+
+---
+
+
+#  Challenge: col
+
+As the name suggests, this challenge revolves around a **hash collision**.
+
+---
+
+##  Introduction
+
+> **What is a Hash Collision?**  
+> According to [Wikipedia](https://en.wikipedia.org/wiki/Hash_collision):  
+> _"In computer science, a hash collision or hash clash is when two distinct pieces of data in a hash table share the same hash value. The hash value in this case is derived from a hash function which takes a data input and returns a fixed length of bits."_
+
+---
+
+##  Description
+
+You're given a binary that:
+
+- Takes **one argument** from the command line.
+- Splits that input into 5 blocks of 4 bytes each (20 bytes total).
+- Sums the blocks as `int` values.
+- Compares the sum with a hardcoded target value: `0x21DD09EC`.
+
+If the sum matches, the binary prints the flag.
+
+---
+
+##  Source Code Analysis
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+unsigned long hashcode = 0x21DD09EC;
+
+unsigned long check_password(const char* p){
+    int* ip = (int*)p;
+    int res = 0;
+    for (int i = 0; i < 5; i++) {
+        res += ip[i];
+    }
+    return res;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("usage : %s [passcode]\n", argv[0]);
+        return 0;
+    }
+
+    if (strlen(argv[1]) != 20) {
+        printf("passcode length should be 20 bytes\n");
+        return 0;
+    }
+
+    if (hashcode == check_password(argv[1])) {
+        setregid(getegid(), getegid());
+        system("/bin/cat flag");
+        return 0;
+    } else {
+        printf("wrong passcode.\n");
+    }
+
+    return 0;
+}
+```
+##  Key Observations
+
+- The program expects exactly **20 bytes** of input :`strlen(argv[1]) == 20`
+- The input is treated as **5 integers** :`int* ip = (int*)p;`meaning the input is interpreted as five,4-byte blocks.
+
+- These 5 integers are summed:  
+ ```c
+  for (i = 0; i < 5; i++) {
+      res += ip[i];
+  }
+```
+
+##  Exploit Strategy
+
+###  Initial Approach (Failed)
+
+We want to send our input through command line arguement,
+
+_(Maybe the concept of hashing here is, the password must be of 20 bytes and after the “hashing” process it must collide with "0x21DD09EC"?)_
+
+why not just make 5 blocks, like let x,y,z,w,t be elements equal to 5,68,134,124 (0x21DD09EC in decimal)
+
+and yeah! To reduce the complexity make y=z=w=t=0 and x = 568134124 as unsigned int supports 0 to 4,294,967,295 
+and x can easily fit 5,68,134,124? Right?
+
+Trying this out and making bytes out of 568134124 0 0 0 0,
+
+
+```python
+import struct
+
+nums = [568134124, 0, 0, 0, 0]
+packed = struct.pack('<5I', *nums)  #5I, is to pack 5 integer values
+print(packed)
+```
+
+
+
+| Symbol | Meaning                                                 |
+| ------ | ------------------------------------------------------- |
+| `<`    | **Little-endian**, standard size and alignment          |
+| `>`    | **Big-endian**, standard size and alignment             |
+| `!`    | **Network byte order** (big-endian), standard alignment |
+| `@`    | Native byte order and alignment (platform-dependent)    |
+| `=`    | Native byte order, **standard** alignment (portable)    |
+
+>> you could use '@' too instead '<'
+
+
+
+output:
+
+**b'\xec\t\xdd!\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'**
+
+>> _now, we cant really type this as our command line agruement as \x'value', is literally treated as different character rather a single byte so,_
+
+Since it expects command line argument, we would make python script and create subprocess and execute the script
+
+```python
+import subprocess
+payload = b'\xec\t\xdd!\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+subprocess.run(["./col", payload])
+```
+and now, drumrolls~
+
+![python output](/assets/images/python.png)
+
+What in 
+
+okay, byte value \x00 is literally null,
+
+### Modified Approach (Succeed)
+
+changing the math right away,
+
+Let y = z = w = t =  **0x21DD09EC/5** (gives out in floating point, problematic)
+And x =  **0x21DD09EC%5** (4 is the remainder)
+
+Balancing it out,
+ 
+>> Let y = z = w = t = **113626824.0**
+>> And x = 113626824.0 + 4 = **113626828**
+
+Encode this into bytes:
+
+`113626824 113626824 113626824 113626824 113626828`
+
+and turning this into python script
+
+```python
+import struct
+
+nums = [113626824, 113626824, 113626824, 113626824, 113626828]
+packed = struct.pack('<5I', *nums)
+print(packed)
+```
+
+
+#### output : 
+` b'\xc8\xce\xc5\x06\xc8\xce\xc5\x06\xc8\xce\xc5\x06\xc8\xce\xc5\x06\xcc\xce\xc5\x06 `
+
+
+
+#### Trust issues:
+```python
+data = b'\xc8\xce\xc5\x06\xc8\xce\xc5\x06\xc8\xce\xc5\x06\xc8\xce\xc5\x06\xcc\xce\xc5\x06'
+>>> nums = struct.unpack('<5I', data)
+>>>
+>>> print("Values:", nums)
+Values: (113626824, 113626824, 113626824, 113626824, 113626828)
+>>> print("Sum (unsigned long):", sum(nums))
+Sum (unsigned long): 568134124
+```
+Fine so these bytes are alright, since passing these bytes normally would cause it to read like normal character than actual bytes we need to pack them nicely, 
+
+
+Making a script file:
+`nano /tmp/pyth.py`
+
+
+
+pyth.py:
+```python
+import subprocess
+payload = b'\xc8\xce\xc5\x06' * 4 + b'\xcc\xce\xc5\x06'
+subprocess.run(["./col", payload])
+```
+
+
+Execute in home directory
+`python3 /tmp/pyth.py`
+## Output
+![output](/assets/images/output1.png)
