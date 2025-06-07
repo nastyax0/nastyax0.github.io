@@ -210,9 +210,8 @@ code {
   font-family: 'Fira Code', monospace;
   background-color: #272822;
   color: #f8f8f2;
-  padding: 1em;
-  border-radius: 8px;
-  display: block;
+  padding: 0.4em;
+  border-radius: 2px;
   white-space: pre;
 }
 

