@@ -346,7 +346,7 @@ int main(int argc, char* argv[]){
 }
 ```
 
-### 🧪 Background Check (skip if you know this)
+###  Background Check (skip if you know this)
 
 "At first glance, it might seem like our input is irrelevant _func_ always receives ***0xdeadbeef***, and the check expects ***0xcafebabe**. 
 
@@ -357,13 +357,13 @@ int main(int argc, char* argv[]){
 
 
 
-## 🧪 Proof of Concept (PoC)
+##  Proof of Concept (PoC)
 
 To solidify our understanding, let’s walk through a step-by-step **GDB demonstration** and payload crafting.
 
 
 
-### 🛠️ GDB Setup & Disassembly
+###  GDB Setup & Disassembly
 
 Spin up GDB and disassemble the `main` function. Identify the call to `func` and focus on how the vulnerable `gets()` function is used.
 
@@ -428,7 +428,7 @@ This means we need:
 
 ---
 
-### 🧪 Final Exploit Payload
+###  Final Exploit Payload
 
 ```python
 #!/usr/bin/env python3
