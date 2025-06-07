@@ -292,7 +292,8 @@ Execute in home directory
 ## Output
 ![output](/assets/images/output1.png)
 
-TLDR:
+## TLDR:
+_"In summary, a input was to be provided that clashed with decimal value of `0x21DD09EC`"_
 
 ---
 
@@ -405,7 +406,7 @@ And yes, **it worked!**
 
 
 
-### 🔍 Finding the Offset
+###  Finding the Offset
 
 Let’s determine how far the overflow needs to go to reach `ebp+8`:
 
@@ -482,6 +483,166 @@ p.interactive()
 And it works!
 
 ![Output](/assets/images/output2.png)
+
+## TLDR:
+
+_"In summary, buffer overflow vulnerablity was to be exploited and levraged to pollute area of `ebp+0x8` with `0xcafebabe` to get the flag"_
+
+---
+
+#  Challenge: random
+
+
+As the name suggests, this challenge revolves around **random()**, a lesser use rand() function.
+
+
+---
+
+
+##  Introduction
+
+
+> **What is random**  
+> The [rand()](https://pubs.opengroup.org/onlinepubs/7908799/xsh/rand.html) function computes a sequence of pseudo-random integers in the range 0 to {RAND_MAX}  with a period of at least 232. The rand_r() function returns a pseudo-random integer.
+
+
+"_[Random number generation](https://en.wikipedia.org/wiki/Random_number_generation) is a process by which, often by means of a random number generator (RNG), a sequence of numbers or symbols is generated that cannot be reasonably predicted better than by random chance. This means that the particular outcome sequence will contain some patterns detectable in hindsight but impossible to foresee._".
+
+### Description
+You're given a binary that:
+
+
+- Takes **one argument** from the command line.
+- Xors the input with random number
+- compares xor’d result with 0xcafebabe.
+
+If the condition is true, the binary prints the flag
+
+
+##### Source Code
+
+```C
+#include<stdio.h>
+int main(){
+        unsigned int random;
+        random = rand();        // random value!
+
+
+        unsigned int key=0;
+        scanf("%d", &key);
+
+
+        if( (key ^ random) == 0xcafebabe ){
+                printf("Good!\n");
+                setregid(getegid(), getegid());
+                system("/bin/cat flag");
+                return 0;
+        }
+
+
+        printf("Wrong, maybe you should try 2^32 cases.\n");
+        return 0;
+}
+```
+
+
+#### Method
+One may think that xoring a value with a random number is so weird because random numbers are random…?
+
+
+But then it gives us a hint check all 2^32 cases
+
+
+I searched on net `2^32 cases rand() c docs`
+
+
+>> [rand()](https://en.cppreference.com/w/c/numeric/random/rand.html) was made as pseudo random algorithm which is vulnerable and outdated.
+
+
+_There are no guarantees as to the quality of the random sequence produced. In the past, some implementations of rand() have had serious shortcomings in the randomness, distribution and period of the sequence produced (in one well-known example, the low-order bit simply alternated between 1 and 0 between calls). rand() is not recommended for serious random-number generation needs, like cryptography._
+
+
+_The [rand subroutine](https://www.ibm.com/docs/en/aix/7.2.0?topic=r-rand-srand-subroutine) generates a pseudo-random number using a multiplicative congruential algorithm. The random-number generator has a period of 2^32, and it returns successive pseudo-random numbers in the range from 0 through (2^15) -1._
+
+
+```C
+static unsigned int next = 1;
+int rand( )
+{
+next = next
+*
+ 1103515245 + 12345;
+return ((next >>16) & 32767);
+}
+```
+[Why rand() isnt a good choice](https://codeforces.com/blog/entry/61587)
+
+
+Here the next var start with 1 and 
+```next = next * 1103515245 + 12345;```
+
+
+Then, ```((next >>16) & 32767);```
+
+
+
+
+>> A much better evolution came with srand (seeding method) and since then it has change a lot into seeding and IV keys
+
+Printing the return value it comes out to be 16838, so random value is predicted
+
+
+##  EXECUTION (Failed approach)
+
+Xor is associative meaning if x ^ y = c ⇒ c ^ y = x
+
+And hence for our input x, we have to:
+```0xcafebabe ^ random number = x```
+
+Meaning,
+
+```0xcafebabe ^ 16838= x```
+
+```python
+>>>print(0xcafebabe ^ 16838)
+<<< 3405708152
+```
+![Output](/assets/images/failed.png)
+
+Hmm, this shouldn't be the case, referring to more articles I got to know rand() is system dependent, meaning that some implementations (e.g., glibc) return int values in full 32-bit range — not limited to 15 bits(32767), which was true for older systems or specific environments.
+
+>> And hence you should check 2^32 cases!!!! (That's a hint)
+
+⚠️ Note: While the traditional range of rand() is from 0 to 32767, in many systems (e.g., glibc), the implementation is modified to return a larger range of values.
+
+So, we need to generate from our system
+
+###  Execution (Working approach)
+
+Well make the sandbox print what exactly is rand() then?
+
+Rand.c:
+```c
+#include <stdio.h>
+#include <stdlib.h>
+int main()
+{
+    unsigned int val = rand();
+    printf("%d", val);
+}
+```
+
+
+output : `1804289383`
+```python
+>>>print(0xcafebabe ^ 1804289383)
+<<< 2708864985
+```
+
+![Output](/assets/images/output3.png)
+
+## TLDR: 
+_"In summary, rand() is predictable if not seeded, and this can be leveraged in CTF-style challenges. Always verify the exact implementation used on the target system to avoid mismatch in behavior."_
 
 
 
