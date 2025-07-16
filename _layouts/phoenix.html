@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title }}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/monokai.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+
+  <link rel="stylesheet" href="{{ site.baseurl }}/css/style.css">
+</head>
+<body>
+  <div class="hero">
+  <pre class="terminal-banner">
+      ███▄    █  ▄▄▄        ██████ ▄▄▄█████▓▓██   ██▓ ▄▄▄      ▒██   ██▒ ▒█████  
+      ██ ▀█   █ ▒████▄    ▒██    ▒ ▓  ██▒ ▓▒ ▒██  ██▒▒████▄    ▒▒ █ █ ▒░▒██▒  ██▒
+     ▓██  ▀█ ██▒▒██  ▀█▄  ░ ▓██▄   ▒ ▓██░ ▒░  ▒██ ██░▒██  ▀█▄  ░░  █   ░▒██░  ██▒<span class="terminal-cursor"></span>
+     ▓██▒  ▐▌██▒░██▄▄▄▄██   ▒   ██▒░ ▓██▓ ░   ░ ▐██▓░░██▄▄▄▄██  ░ █ █ ▒ ▒██   ██░
+     ▒██░   ▓██░ ▓█   ▓██▒▒██████▒▒  ▒██▒ ░   ░ ██▒▓░ ▓█   ▓██▒▒██▒ ▒██▒░ ████▓▒░
+     ░ ▒░   ▒ ▒  ▒▒   ▓▒█░▒ ▒▓▒ ▒ ░  ▒ ░░      ██▒▒▒  ▒▒   ▓▒█░▒▒ ░ ░▓ ░░ ▒░▒░▒░ 
+     ░ ░░   ░ ▒░  ▒   ▒▒ ░░ ░▒  ░ ░    ░     ▓██ ░▒░   ▒   ▒▒ ░░░   ░▒ ░  ░ ▒ ▒░ 
+        ░   ░ ░   ░   ▒   ░  ░  ░    ░       ▒ ▒ ░░    ░   ▒    ░    ░  ░ ░ ░ ▒  
+              ░       ░  ░      ░            ░ ░           ░  ░ ░    ░      ░ ░  
+                                        ░                                ░░</pre>
+  <div class="header">
+  <div class="sidebar-toggle-wrapper">
+    <button class="hamburger-menu" aria-label="Toggle Sidebar">&#9776;</button>
+    <nav class="sidebar-content">
+      {% include sidebar.html %}
+    </nav>
+  </div>
+  <p class="site-title">Nastyax0's Safe Heaven</p>
+</div>
+
+</div>
+  <div class="content-wrapper">
+    <div class="sidebar-content-desktop">
+    {% include sidebar.html %}</div>
+    <div class="main-content">
+      <img class = "photo" src="/assets/images/phoenix.jpg">
+      {{ content }}
+    </div>
+  </div>
+
+  <footer>
+    <p> <a href="/_site/about.html">About</a> &copy;{{ site.time | date: "%Y" }} {{ site.author }}</p>
+  </footer>
+
+  <!-- JS for collapsing genres -->
+  <script>
+    document.querySelectorAll('.genre-toggle').forEach(button => {
+    button.addEventListener('click', () => {
+      const postList = button.nextElementSibling;
+      postList.classList.toggle('hidden');
+    });
+  });
+
+  document.querySelectorAll('.subgenre-toggle').forEach(button => {
+    button.addEventListener('click', () => {
+      const subPostList = button.nextElementSibling;
+      subPostList.classList.toggle('hidden');
+    });
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+  const hamburger = document.querySelector('.hamburger-menu');
+  const sidebar = document.querySelector('.sidebar-content');
+
+  hamburger.addEventListener('click', () => {
+    sidebar.classList.toggle('active');
+  });
+});
+
+  </script>
+  
+</body>
+</html>
+
+

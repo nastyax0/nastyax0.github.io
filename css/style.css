@@ -404,3 +404,19 @@ img{
 }
 
 
+
+.image-row {
+  display: flex;
+  justify-content: center;   /* center the row */
+  gap: 20px;                 /* space between images */
+  margin: 2em 0;
+}
+
+.my-special-class {
+  width: 220px;
+  height: auto;
+  transform: scaleY(2);   /* elongate vertically */
+  display: block;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+

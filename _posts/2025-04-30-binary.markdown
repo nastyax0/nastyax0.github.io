@@ -9,7 +9,7 @@ Challenges taken from [pwnable.kr](https://pwnable.kr/play.php)
 
 ---
 
-#  Challenge: fd
+#  🌟Challenge: fd
 
 As the name suggests, this challenge revolves around **file descriptors (fd)** in Linux-based systems.
 
@@ -92,7 +92,7 @@ then type, _LETMEWIN_
 ---
 
 
-#  Challenge: col
+#  🌟Challenge: col
 
 As the name suggests, this challenge revolves around a **hash collision**.
 
@@ -225,9 +225,7 @@ and now, drumrolls~
 
 ![python output](/assets/images/python.png)
 
-What in 
-
-okay, byte value \x00 is literally null,
+okay, byte value `\x00` is literally null,
 
 ### Modified Approach (Succeed)
 
@@ -297,7 +295,7 @@ _"In summary, a input was to be provided that clashed with decimal value of `0x2
 
 ---
 
-#  Challenge: bof
+#  🌟Challenge: bof
 
 As the name suggests, this challenge revolves around **buffer overflow**, a classic binary exploitation technique.
 
@@ -490,7 +488,7 @@ _"In summary, buffer overflow vulnerablity was to be exploited and levraged to p
 
 ---
 
-#  Challenge: random
+#  🌟Challenge: random
 
 
 As the name suggests, this challenge revolves around **random()**, a lesser use rand() function.
