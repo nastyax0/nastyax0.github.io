@@ -17,7 +17,13 @@
         <li>
           <button class="subgenre-toggle">Exploit Education</button>
           <ul class="sub-post-list hidden">
-            <li><a href="{{ site.baseurl }}/posts/phoenix.html">Phoenix</a></li>
+            <button class="subgenre-toggle">Phoenix</button>
+            <ul class="sub-post-list hidden">
+            <li><a href="{{ site.baseurl }}/posts/phoenix.html">Stacks</a></li>
+            <li><a href="{{ site.baseurl }}/posts/phoenix-format.html">Format</a></li>
+            <li><a href="{{ site.baseurl }}/posts/phoenix.html">Heaps</a></li>
+            <li><a href="{{ site.baseurl }}/posts/phoenix.html">Networks</a></li>
+            </ul>
             <li><a href="/posts/Malwaresample">Analysis</a></li>
           </ul>
         </li>
@@ -25,8 +31,11 @@
         <li>
           <button class="subgenre-toggle">Hardware</button>
           <ul class="sub-post-list hidden">
-            <li><a href="{{ site.baseurl }}/posts/hw1.html">Exploit Device via UART</a></li>
-            <li><a href="{{ site.baseurl }}/posts/hw2.html">Dump Flash via SPI</a></li>
+            <button class="subgenre-toggle">CTF</button>
+            <ul class="sub-post-list hidden">
+            <li><a href="{{ site.baseurl }}/posts/phoenix.html">Micro-Corruption</a></li>
+            </ul>
+            <li><a href="{{ site.baseurl }}/posts/hw2.html">Embedded Security</a></li>
           </ul>
         </li>
       </ul>
@@ -36,27 +45,40 @@
     <li>
       <button class="genre-toggle">Reverse Engineering</button>
       <ul class="post-list hidden">
-        <li><a href="{{ site.baseurl }}/posts/bin1.html">letssee</a></li>
-        <li><a href="{{ site.baseurl }}/posts/bin2.html">letc</a></li>
+        <li><a href="{{ site.baseurl }}/posts/bin1.html">General Resources</a></li>
+        <li>
+          <button class="subgenre-toggle">Reversing.kr</button>
+          <ul class="sub-post-list hidden">
+            <li><a href="/posts/binary.html">Toddler's Bottle</a></li>
+            <li><a href="{{ site.baseurl }}/posts/re2.html">Rookiss</a></li>
       </ul>
     </li>
 
     <!-- Malware -->
     <li>
-      <button class="genre-toggle">Research Works</button>
+      <button class="genre-toggle">Research & Works</button>
       <ul class="post-list hidden">
         <!-- CTFs Subcategory -->
         <li>
-          <button class="subgenre-toggle">Development</button>
+          <button class="subgenre-toggle">CTF Writeups</button>
           <ul class="sub-post-list hidden">
             <li><a href="{{ site.baseurl }}/posts/re1.html">Windows</a></li>
           </ul>
         </li>
         <!-- Malware Subcategory -->
         <li>
-          <button class="subgenre-toggle">Analysis</button>
+          <button class="subgenre-toggle">EDR BYPASS</button>
           <ul class="sub-post-list hidden">
-            <li><a href="{{ site.baseurl }}/posts/mal1.html">Networks</a></li>
+            <li><a href="{{ site.baseurl }}/posts/mal1.html">Supplementary Notes</a></li>
+            <li><a href="{{ site.baseurl }}/posts/mal1.html">Author's Note</a></li>
+          </ul>
+        </li>
+                <li>
+          <button class="subgenre-toggle">Bachelor's Projects</button>
+          <ul class="sub-post-list hidden">
+            <li><a href="{{ site.baseurl }}/posts/mal1.html">Minor Project</a></li>
+            <li><a href="{{ site.baseurl }}/posts/mal1.html">Major Project</a></li>
+            <li><a href="{{ site.baseurl }}/posts/mal1.html">Thesis</a></li>
           </ul>
         </li>
       </ul>
