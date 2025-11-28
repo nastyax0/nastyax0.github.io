@@ -241,7 +241,8 @@ On a **32-bit system**, each word is 4 bytes — we’d need more `%x` to cover 
 
 ---
 
-## 🛠 Controlled Exploit: Using Widths
+🛠 
+## Controlled Exploit: Using Widths
 
 Instead of random `%x`, let’s **control how many bytes are written**:
 
@@ -509,7 +510,7 @@ Key objectives:
 
 ---
 
-## Theory
+## PLT and GOT?
 
 **PLT (Procedure Linkage Table)** and **GOT (Global Offset Table)** are key to `dynamic linking`:
 
@@ -731,7 +732,7 @@ cat /tmp/payload - | ./format-four
 
 ---
 
-# Takeway:
+
 
 ---
 
