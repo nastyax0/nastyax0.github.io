@@ -388,9 +388,6 @@ Clearly, our mission is to *change* the variable `changeme`.
 ## Strategy
 
 
-
-
-
 ```c
 (gdb) disassemble main
 Dump of assembler code for function main:
@@ -732,16 +729,20 @@ cat /tmp/payload - | ./format-four
 
 ---
 
-
-
----
-
-
 <div class="image-row">
   <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
   <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
   <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
 </div>
+
+---
+
+
+
+
+
+---
+
 
 
 
