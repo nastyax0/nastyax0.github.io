@@ -420,3 +420,11 @@ img{
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
+.my-supaspecial-class {
+  width: 1400px;
+  height: 90px;
+  transform: scaleX(6);   /* elongate horizontally */
+  transform: scaleY(4);
+  display: block;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}

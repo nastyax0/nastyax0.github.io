@@ -811,4 +811,8 @@ uid=1000(user) gid=1000(user) groups=1000(user),27(sudo)
 whoami
 user
 ```
----
+<div class="image-row">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+  <img src="/assets/phoenix/section.png" class="my-special-class" alt="Elongated Image">
+</div>
